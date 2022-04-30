@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import re
+import sys
 import pprint
+import subprocess
+
+from colorama import Fore, Style
 
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
@@ -28,8 +31,13 @@ def printUsage():
     print(f"YOUTUBE_URL is a direct link to a YouTube video")
 
 
-def getVideoID():
-    return sys.argv[1].replace(URL_SEARCH_STRING, '')
+def getVideoID(URL):
+    return re.sub(r'&.*$', '', re.sub(re.escape(URL_SEARCH_STRING), '', URL))
+
+
+def getClipboard():
+    cmdout = subprocess.run(["xsel", "--clipboard"], capture_output=True, text=True)
+    return cmdout.stdout.strip()
 
 
 def getVideoStats(URL):
@@ -47,7 +55,7 @@ def getVideoStats(URL):
 
         request = youtube.videos().list(
             part="snippet,statistics",
-            id=getVideoID()
+            id=getVideoID(URL)
         )
         response = request.execute()
         #pprint.pprint(response)
@@ -55,59 +63,60 @@ def getVideoStats(URL):
         # title
         elem_title = response['items'][0]['snippet']['title']
 
-        ## counts
+        # counts
         view_count = int(response['items'][0]['statistics']['viewCount'])
         likes = int(response['items'][0]['statistics']['likeCount'])
         comments = int(response['items'][0]['statistics']['commentCount'])
 
-        ratio_view_like = view_count / likes
-        ratio_view_comment = view_count / comments
-        ratio_comment_like = likes / comments
+        # calculate ratios
+        # prevent division by zero
+        ratio_view_like = likes and view_count / likes or 0
+        ratio_view_comment = comments and view_count / comments or 0
+        ratio_comment_like = comments and likes / comments or 0
 
         # Printout
-        # TODO: judge the ratios - towards 1 is better
+        # judgement: towards 1 is better. marked with red/green star depending on threshold
         # TODO: is video controversial? (maybe comment-ratio to like-ratio)
         print(elem_title)
         print(f'view count: {view_count} _ likes: {likes} _ comments: {comments}')
-        print(f'view to like ratio: {ratio_view_like:.2f}')
-        print(f'view to comment ratio: {ratio_view_comment:.2f}')
-        print(f'comment to like ratio: {ratio_comment_like:.2f}')
 
-        ''' some results:
-ABSOLUTH x KEIN BOCK ORIGINALS | Kanal abonnieren! - YouTube
-view count: 1599 _ likes: 24 _ comments: 3
-view to like ratio: 66.62
-view to comment ratio: 533.00
-comment to like ratio: 8.00
+        print(f'view to like ratio: {round(ratio_view_like, 2)}', end='')
+        if ratio_view_like > 30:
+            print(f"{Fore.RED}*{Style.RESET_ALL}")
+        elif 20 > ratio_view_like > 0:
+            print(f"{Fore.GREEN}*{Style.RESET_ALL}")
+        else:
+            print("")
 
-Lúcia Lu | HÖR - Apr 12 / 2022 - YouTube
-view count: 25834 _ likes: 1405 _ comments: 121
-view to like ratio: 18.39
-view to comment ratio: 213.50
-comment to like ratio: 11.61
+        print(f'view to comment ratio: {round(ratio_view_comment, 2):}', end='')
+        if ratio_view_comment > 600:
+            print(f"{Fore.RED}*{Style.RESET_ALL}")
+        elif 300 > ratio_view_comment > 0:
+            print(f"{Fore.GREEN}*{Style.RESET_ALL}")
+        else:
+            print("")
 
-Lost Control w/ Black Eyes | HÖR - Apr 14 / 2022 - YouTube
-view count: 2071 _ likes: 77 _ comments: 4
-view to like ratio: 26.90
-view to comment ratio: 517.75
-comment to like ratio: 19.25
-
-Bash Back 2022 - YouTube
-view count: 98 _ likes: 20 _ comments: 4
-view to like ratio: 4.90
-view to comment ratio: 24.50
-comment to like ratio: 5.00
-        '''
+        print(f'comment to like ratio: {round(ratio_comment_like, 2):}', end='')
+        if ratio_comment_like > 50:
+            print(f"{Fore.RED}*{Style.RESET_ALL}")
+        elif 20 > ratio_comment_like > 0:
+            print(f"{Fore.GREEN}*{Style.RESET_ALL}")
+        else:
+            print("")
 
 # process command line options
 if len(sys.argv) > 1:
     if URL_SEARCH_STRING in sys.argv[1]:
         logging.debug("Printing video stats:")
         getVideoStats(sys.argv[1])
-        logging.debug("Bye.")
     elif sys.argv[1] == "--help":
         printUsage()
         exit()
+    elif sys.argv[1] == "magic":
+        clip = getClipboard()
+        if URL_SEARCH_STRING in clip:
+            logging.debug("Printing video stats:")
+            getVideoStats(clip)
     else:
         print("Error: invalid option.")
         printUsage()
