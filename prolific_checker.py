@@ -240,7 +240,7 @@ def reservePlace():
         elem_card_1 = WebDriverWait(browser, 5).until(
             EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'place')]"))
         )
-        time.sleep(1.5)  # prevent 'element click intercepted' error
+        time.sleep(3)  # prevent 'element click intercepted' error
         elem_card_1.click()
 
     except Exception as err:
