@@ -178,6 +178,27 @@ def checkIfStudyPresent():
         return False
 
 
+def checkIfAboutYouPresent():
+    # check and notify in case, then just continue
+    logging.debug('Checking if about you question is present.')
+    try:
+        '''
+        <div data-v-4e31d165="" data-v-05b62042="" data-testid="dynamic-question-card" class="base-card dynamic-questions-card"><div data-v-4e31d165="" class="details-group"><div data-v-4e31d165="" data-testid="icon"><figure data-v-6e878d54="" data-v-f20b8f94="" class="image-container fs-block icon" data-testid="base-icon" data-v-4e31d165=""><img data-v-6e878d54="" src="/img/default_question_icon.5f231907.svg" alt="" style="width: 48px; height: 48px;"></figure></div><div data-v-4e31d165="" class="details"><h3 data-v-4e31d165="" data-testid="title" class="title fs-block"> Questions about you </h3><div data-v-4e31d165="" data-testid="host" class="host fs-block"> By Prolific </div></div></div><div data-v-4e31d165="" class="tags"><li data-v-e83b940e="" class="tag-container question-tag" data-v-4e31d165=""><div data-v-e83b940e="" data-tippy="" data-original-title="html"><!----><span data-v-e83b940e="" class="label"><!----><!----><!----><!----><span data-v-e83b940e="" data-testid="study-tag-top-questions">Top 1</span></span></div></li></div><!----></div>
+        '''
+        elemAboutYou = WebDriverWait(browser, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "dynamic-questions-card"))
+        )
+
+        logging.debug('Page element found. About you question waiting to be answered!')
+
+        notifyUser("About You card present!", "Switch to a browser and answer it!")
+
+        return True
+    except Exception as err:
+        logging.debug('Page element not found. No study present. Infotext: ' + str(err))
+        return False
+
+
 def screenIsLocked():
     logging.debug('Checking if screen is locked.')
     try:
@@ -306,6 +327,8 @@ try:
                 reservePlace()  # waits ~5-15 seconds
                 # problem: study might be full. button remains there.
                 # solution: refresh, just in case
+
+            checkIfAboutYouPresent()
 
             if checkIfStudyPresent():
                 printProgress(".")
