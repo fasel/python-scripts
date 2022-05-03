@@ -19,13 +19,13 @@ logging.basicConfig(filename='debug_prolific_checker.log', filemode = "w", level
 logging.debug('Start of program')
 
 import configparser
-config = configparser.ConfigParser()
+config = configparser.ConfigParser(interpolation=None)
 config.read('config_prolific_checker.ini')
 
 # constants
 MINUTE = 60
 URL = "https://app.prolific.co/"
-USER_DATA_PATH = config['prolific']['user_data_path']
+USER_DATA_PATH = config['local']['user_data_path']
 USER = config['prolific']['user']
 PASS = config['prolific']['pass']
 
@@ -115,7 +115,7 @@ def doLogin():
     except Exception as err:
         logging.error('Exception: ' + str(err))
         browser.quit()
-        exit("Error: Element not found. Exiting.") 
+        exit("Error: Login elements not found. Exiting.") 
 
 
 def checkForStudy():
@@ -160,7 +160,6 @@ def checkIfStuck():
 def checkIfStudyPresent():
     logging.debug('Checking if study is present.')
     try:
-        # wait as long as span is there. exception .... nee
         '''
         thats the timer span
         <span data-v-0a104dd0="" data-v-c37c6068="" class="text-align-left"> Remaining time you have to complete this study:
@@ -236,12 +235,12 @@ def reservePlace():
     button #2
     finder: //button[contains(text(),'Take part in this study')]
     '''
-    # find and click first card
+    # find and click first card (optional)
     try:
         elem_card_1 = WebDriverWait(browser, 5).until(
             EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'place')]"))
         )
-        time.sleep(1.5)  # prevent 'element click intercepted' Error
+        time.sleep(1.5)  # prevent 'element click intercepted' error
         elem_card_1.click()
 
     except Exception as err:
@@ -258,17 +257,6 @@ def reservePlace():
         print("Place reserved (button1). Start the study!")
         notifyUser("Place reserved", "Switch to a browser and start the study!")
 
-        # problem: study might be full. button remains there.
-        # we can refresh, then wait
-        # or waste 10 minutes waiting
-        # if we dont wait, we will loop
-        # TODO: BUT NOT if we check for the waiting_for_start_of_study condition (timer of 10 minutes being reserved)
-
-        # sleeping for a while
-        # you lose the slot after 10 minutes if you dont start the study
-        sleep_time = 10 * MINUTE  
-        logging.debug(f'sleeping({sleep_time})...')
-        time.sleep(sleep_time)
     except Exception as err: 
         logging.debug('Place reservation: Button 1 not found. Msg: ' + str(err))
         logging.debug('trying button 2')
@@ -283,11 +271,6 @@ def reservePlace():
             print("Place reserved (button2). Start the study!")
             notifyUser("Place reserved", "Switch to a browser and start the study!")
 
-            # sleeping for a while
-            # you lose the slot after 10 minutes if you dont start the study
-            sleep_time = 10 * MINUTE  
-            logging.debug(f'sleeping({sleep_time})...')
-            time.sleep(sleep_time)
         except Exception as err: 
             logging.debug('Place reservation: Button 2 not found. Msg: ' + str(err))
             logging.debug('giving up.')
@@ -318,26 +301,29 @@ try:
         printProgress(f"e({error_check})")
         if checkIfLoggedIn():
             printProgress(".")
-            if checkForStudy():
+            if checkForStudy():  # waits ~60 seconds
                 printProgress("!")
-                reservePlace()
+                reservePlace()  # waits ~5-15 seconds
+                # problem: study might be full. button remains there.
+                # solution: refresh, just in case
 
             if checkIfStudyPresent():
-                # TODO: wait
-            else:
-                if checkIfStuck():
-                    printProgress(".")
-                    # sleep to prevent hammering
-                    # randomize for stealth
-                    sleep_time = getRandInt(11,17)
-                    logging.debug(f'sleeping({sleep_time})...')
-                    time.sleep(sleep_time)
-                    # do a refresh, just in case
-                    # prolific autoupdate tends to get stuck
-                    # directly loading study page instead of just doing refresh
-                    # because we might be stuck in a full or time outed study
-                    logging.warning('Refreshing Page.')
-                    browser.get(URL + 'studies')
+                printProgress(".")
+                # sleeping for a while
+                # you lose the slot after 10 minutes if you dont start the study
+                # but we wait less because it might have been finished in the meantime
+                sleep_time = 5 * MINUTE  
+                logging.debug(f'sleeping({sleep_time})...')
+                time.sleep(sleep_time)
+
+            if checkIfStuck():
+                printProgress("s")
+                # do a refresh, just in case
+                # prolific autoupdate tends to get stuck
+                # directly loading study page instead of just doing refresh
+                # because we might be stuck in a full or time outed study
+                logging.warning('Refreshing Page.')
+                browser.get(URL + 'studies')
         else:
             printProgress("w")
             doLogin()
