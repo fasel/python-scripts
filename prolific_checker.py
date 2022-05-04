@@ -25,9 +25,10 @@ config.read('config_prolific_checker.ini')
 # constants
 MINUTE = 60
 URL = "https://app.prolific.co/"
-USER_DATA_PATH = config['local']['user_data_path']
 USER = config['prolific']['user']
 PASS = config['prolific']['pass']
+USER_DATA_PATH = config['local']['user_data_path']
+CUSTOMBROWSER = config.get('local', 'custombrowser', fallback=None)  # fallback to default browser
 
 # globals
 show_progress = False
@@ -158,6 +159,13 @@ def checkIfStuck():
 
 
 def checkIfStudyPresent():
+    # TODO: missing case: study waiting to be started
+    '''
+    <span data-v-5b1dc16f="" data-v-ec27504a="" class="text-align-left"> Your place is reserved for the next <div data-v-1a59804b="" data-v-5b1dc16f="" class="timer" data-testid="timer" data-v-ec27504a=""><!----><div data-v-1a59804b="" class="timer__counter timer__counter--simple"> 00:09:23 </div></div></span>
+
+    <button data-v-5b1dc16f="" type="submit" class="el-button button button el-button--primary el-button--l" data-testid="start-now"><!----><!----><span> Start study </span></button>
+    <span> Start study </span>
+    '''
     logging.debug('Checking if study is present.')
     try:
         '''
@@ -247,6 +255,16 @@ def reservePlace():
     places span element on card:
     <span data-v-e83b940e="" data-testid="study-tag-places"> 877 places </span>
     finder: //span[contains(text(),'place')]
+    try the parent
+    #1:
+    submitLoginSpan = wd.find_element_by_id("account-login-submit-message")
+    submitLoginButton = submitLoginSpan.find_element_by_xpath("..")
+    submitLoginButton.click()
+    #2:
+    submitLoginButton = wd.find_element_by_xpath('//span[@id="account-login-submit-message"]/ancestor::button')
+    submitLoginButton.click()
+    #3:
+    //Image[@type='art']/parent::*
 
     button #1 to reserve place:
     this is a bit weird. the dump shows a button, but console shows a span.
@@ -265,7 +283,19 @@ def reservePlace():
         elem_card_1.click()
 
     except Exception as err:
-        logging.debug('Place reservation: Card not found. Msg: ' + str(err))
+        logging.debug('Place reservation: Card not found or not clickable. Msg: ' + str(err))
+
+        # if first click fails, click card's parent (optional)
+        logging.debug("Trying card's parent.")
+        try:
+            elem_card_1 = WebDriverWait(browser, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'place')]"))
+            )
+            elem_card_2 = elem_card_1.find_element_by_xpath("..")
+            elem_card_2.click()
+
+        except Exception as err:
+            logging.debug("Place reservation: Card's parent not found or not clickable. Msg: " + str(err))
 
     # find and click reserve place button #1
     try:
@@ -277,6 +307,10 @@ def reservePlace():
 
         print("Place reserved (button1). Start the study!")
         notifyUser("Place reserved", "Switch to a browser and start the study!")
+
+        # open browser for convenience
+        webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
+
 
     except Exception as err: 
         logging.debug('Place reservation: Button 1 not found. Msg: ' + str(err))
@@ -291,6 +325,10 @@ def reservePlace():
 
             print("Place reserved (button2). Start the study!")
             notifyUser("Place reserved", "Switch to a browser and start the study!")
+
+            # open browser for convenience
+            webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
+
 
         except Exception as err: 
             logging.debug('Place reservation: Button 2 not found. Msg: ' + str(err))
@@ -345,6 +383,7 @@ try:
                 # prolific autoupdate tends to get stuck
                 # directly loading study page instead of just doing refresh
                 # because we might be stuck in a full or time outed study
+                print('Refreshing Page.')
                 logging.warning('Refreshing Page.')
                 browser.get(URL + 'studies')
         else:
