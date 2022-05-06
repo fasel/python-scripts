@@ -6,7 +6,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from subprocess import Popen, PIPE
+
 from datetime import datetime
+
+import webbrowser
 import subprocess
 import fileinput
 import random
@@ -27,8 +31,9 @@ MINUTE = 60
 URL = "https://app.prolific.co/"
 USER = config['prolific']['user']
 PASS = config['prolific']['pass']
+PROLIFIC_ID = config['prolific']['id']
 USER_DATA_PATH = config['local']['user_data_path']
-CUSTOMBROWSER = config.get('local', 'custombrowser', fallback=None)  # fallback to default browser
+CUSTOMBROWSER = config.get('local', 'custombrowser', fallback=None)  # None: fallback to default browser
 
 # globals
 show_progress = False
@@ -59,10 +64,22 @@ def getRandInt(min,max):
     return random.randint(min,max)
 
 
+def setClipboard(text):
+    p = Popen(['xsel','-pi'], stdin=PIPE)
+    p.communicate(input=text)
+
+
 def notifyUser(topic, text):
     # -t 10000 | timeout in ms (10000=10s)
     # -h string:desktop-entry:org.kde.dolphin | hint with icon (this makes it show up in the notification history)
     subprocess.call(["notify-send", "-t", "10000", "-h", "string:desktop-entry:org.kde.dolphin", "Prolific Checker: " + topic, text])    
+
+
+def prolificConvenience():
+    # open browser for convenience
+    webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
+    # copy id to clipboard
+    setClipboard(PROLIFIC_ID)
 
 
 def printProgress(status):
@@ -308,9 +325,7 @@ def reservePlace():
         print("Place reserved (button1). Start the study!")
         notifyUser("Place reserved", "Switch to a browser and start the study!")
 
-        # open browser for convenience
-        webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
-
+        prolificConvenience()
 
     except Exception as err: 
         logging.debug('Place reservation: Button 1 not found. Msg: ' + str(err))
@@ -326,9 +341,7 @@ def reservePlace():
             print("Place reserved (button2). Start the study!")
             notifyUser("Place reserved", "Switch to a browser and start the study!")
 
-            # open browser for convenience
-            webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
-
+            prolificConvenience()
 
         except Exception as err: 
             logging.debug('Place reservation: Button 2 not found. Msg: ' + str(err))
