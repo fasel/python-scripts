@@ -65,20 +65,30 @@ def getRandInt(min,max):
 
 
 def setClipboard(text):
-    p = Popen(['xsel','-pi'], stdin=PIPE)
-    p.communicate(input=text)
+    try:
+        p = Popen(['xsel','-pi'], stdin=PIPE)
+        p.communicate(input=text.encode('utf-8'))
+    except Exception as err:
+        logging.error('Setting the clipboard failed. Msg: ' + str(err))
 
 
 def notifyUser(topic, text):
-    # -t 10000 | timeout in ms (10000=10s)
-    # -h string:desktop-entry:org.kde.dolphin | hint with icon (this makes it show up in the notification history)
-    subprocess.call(["notify-send", "-t", "10000", "-h", "string:desktop-entry:org.kde.dolphin", "Prolific Checker: " + topic, text])    
+    try:
+        # -t 10000 | timeout in ms (10000=10s)
+        # -h string:desktop-entry:org.kde.dolphin | hint with icon (this makes it show up in the notification history)
+        subprocess.call(["notify-send", "-t", "10000", "-h", "string:desktop-entry:org.kde.dolphin", "Prolific Checker: " + topic, text])    
+    except Exception as err:
+        logging.error('Notification send failed. Msg: ' + str(err))
 
 
 def prolificConvenience():
-    # open browser for convenience
-    webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
-    # copy id to clipboard
+    logging.debug("convenience: opening browser")
+    try:
+        webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
+    except Exception as err:
+        logging.error('Opening the browser failed. Msg: ' + str(err))
+
+    logging.debug("convenience: copying id to clipboard")
     setClipboard(PROLIFIC_ID)
 
 
@@ -283,6 +293,12 @@ def reservePlace():
     #3:
     //Image[@type='art']/parent::*
 
+    card div
+    <div data-v-4e31d165="" data-v-1c93b372="" data-testid="base-card" class="base-card selected">
+    <div data-v-4e31d165="" class="details-group"><div data-v-4e31d165="" data-testid="icon">
+    <figure data-v-6e878d54="" data-v-fe182140="" class="image-container fs-block icon" data-testid="base-icon" data-v-4e31d165="">
+    #1 selector: .findElement(By.xpath("//*[@data-testid='base-card']"))
+
     button #1 to reserve place:
     this is a bit weird. the dump shows a button, but console shows a span.
     so now we try with a span first
@@ -293,40 +309,47 @@ def reservePlace():
     '''
     # find and click first card (optional)
     try:
-        elem_card_1 = WebDriverWait(browser, 5).until(
-            EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'place')]"))
+        logging.debug("Trying card 0.")
+        elem_card_0 = WebDriverWait(browser, 5).until(
+            EC.element_to_be_clickable((By.XPATH, "//*[@data-testid='base-card']"))
         )
-        time.sleep(3)  # prevent 'element click intercepted' error
-        elem_card_1.click()
+        elem_card_0.click()
 
     except Exception as err:
-        logging.debug('Place reservation: Card not found or not clickable. Msg: ' + str(err))
+        logging.debug('Place reservation: Card 0 not found or not clickable. Msg: ' + str(err))
 
-        # if first click fails, click card's parent (optional)
-        logging.debug("Trying card's parent.")
+        # find and click first card by span element
         try:
+            logging.debug("Trying card 1.")
             elem_card_1 = WebDriverWait(browser, 5).until(
                 EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'place')]"))
             )
-            elem_card_2 = elem_card_1.find_element_by_xpath("..")
-            elem_card_2.click()
+            time.sleep(3)  # prevent 'element click intercepted' error
+            elem_card_1.click()
 
         except Exception as err:
-            logging.debug("Place reservation: Card's parent not found or not clickable. Msg: " + str(err))
+            logging.debug('Place reservation: Card 1 not found or not clickable. Msg: ' + str(err))
+
+            # if first click fails, click card's parent (optional)
+            logging.debug("Trying card's parent.")
+            try:
+                elem_card_1 = WebDriverWait(browser, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'place')]"))
+                )
+                elem_card_2 = elem_card_1.find_element_by_xpath("..")
+                elem_card_2.click()
+
+            except Exception as err:
+                logging.debug("Place reservation: Card's parent not found or not clickable. Msg: " + str(err))
 
     # find and click reserve place button #1
     try:
+        logging.debug("Trying button 1.")
         elem_reserve_button = WebDriverWait(browser, 5).until(
             EC.presence_of_element_located((By.XPATH, "//span[contains(text(),'ake part in this study')]"))
         )
         browser.execute_script("arguments[0].scrollIntoView();", elem_reserve_button);
         elem_reserve_button.click()
-
-        print("Place reserved (button1). Start the study!")
-        notifyUser("Place reserved", "Switch to a browser and start the study!")
-
-        prolificConvenience()
-
     except Exception as err: 
         logging.debug('Place reservation: Button 1 not found. Msg: ' + str(err))
         logging.debug('trying button 2')
@@ -338,15 +361,13 @@ def reservePlace():
             )
             elem_reserve_button2.click()
 
-            print("Place reserved (button2). Start the study!")
-            notifyUser("Place reserved", "Switch to a browser and start the study!")
-
-            prolificConvenience()
-
         except Exception as err: 
             logging.debug('Place reservation: Button 2 not found. Msg: ' + str(err))
             logging.debug('giving up.')
             dumpAndExit()
+    print("Place reserved. Start the study!")
+    notifyUser("Place reserved", "Switch to a browser and start the study!")
+    prolificConvenience()
 
 
 # process command line options
