@@ -6,6 +6,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from argparse import ArgumentParser
+
 from subprocess import Popen, PIPE
 
 from datetime import datetime
@@ -13,14 +15,10 @@ from datetime import datetime
 import webbrowser
 import subprocess
 import fileinput
+import logging
 import random
 import time
 import sys
-
-import logging
-#logging.basicConfig(level=logging.WARN, format=' %(asctime)s - %(levelname)s - %(message)s')
-logging.basicConfig(filename='debug_prolific_checker.log', filemode = "w", level=logging.DEBUG, format=' %(asctime)s - %(levelname)s - %(message)s')
-logging.debug('Start of program')
 
 import configparser
 config = configparser.ConfigParser(interpolation=None)
@@ -36,15 +34,22 @@ USER_DATA_PATH = config['local']['user_data_path']
 CUSTOMBROWSER = config.get('local', 'custombrowser', fallback=None)  # None: fallback to default browser
 
 # globals
+dump_only = False
+debug_logging = False
 show_progress = False
 
 # set up browser
 options = webdriver.ChromeOptions() 
-options.add_argument("user-data-dir=" + USER_DATA_PATH)  #save cookies
-#options.add_argument('--disable-blink-features=AutomationControlled')  #stealth
+# save cookies
+options.add_argument("user-data-dir=" + USER_DATA_PATH)
+# stealth
+#options.add_argument('--disable-blink-features=AutomationControlled')
 options.add_experimental_option("excludeSwitches", ["enable-automation"])
 options.add_experimental_option('useAutomationExtension', False)
 #options.add_argument("user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36")
+# headless
+options.add_argument("--headless");
+options.add_argument('window-size=1080x1920');
 # disable crash bubble
 options.add_argument("disable-session-crashed-bubble") 
 def modify_file_as_text(text_file_path, text_to_search, replacement_text):
@@ -54,10 +59,33 @@ def modify_file_as_text(text_file_path, text_to_search, replacement_text):
 modify_file_as_text(USER_DATA_PATH + 'Default/Preferences', 'Crashed', 'none')
     
 
-def printUsage():
-    print(f"basic usage: {sys.argv[0]}")
-    print(f"show progress bar: {sys.argv[0]} -p")
-    print(f"button dump only: {sys.argv[0]} dump")
+# command line options
+parser = ArgumentParser()
+parser.add_argument("--dumponly",
+                    action="store_true", default=False,
+                    help="button dump only")
+parser.add_argument("-v", "--verbose",
+                    action="store_true", default=False,
+                    help="write debug log")
+parser.add_argument("-p", "--progress",
+                    action="store_true", default=False,
+                    help="print status messages to stdout")
+args = parser.parse_args()
+if args.dumponly:
+    dump_only = True
+    debug_logging = True  # dump implies debug
+if args.verbose:
+    debug_logging = True
+if args.progress:
+    show_progress = True
+
+
+# set up logging
+if debug_logging == True:
+    logging.basicConfig(filename='debug_prolific_checker.log', filemode = "w", level=logging.DEBUG, format=' %(asctime)s - %(levelname)s - %(message)s')
+else:
+    logging.basicConfig(level=logging.WARN, format=' %(asctime)s - %(levelname)s - %(message)s')
+logging.debug('Start of program')
 
 
 def getRandInt(min,max):
@@ -370,20 +398,14 @@ def reservePlace():
     prolificConvenience()
 
 
-# process command line options
-if len(sys.argv) > 1:
-    if sys.argv[1] == "dump":
-        browser = webdriver.Chrome(options=options)
-        browser.get(URL)
-        time.sleep(8)
-        dumpAndExit()
-    if sys.argv[1] == "-p":
-        show_progress = True
-    else:
-        printUsage()
-        exit(1)
-
 # MAIN
+if dump_only:
+    print("Dumping...")
+    browser = webdriver.Chrome(options=options)
+    browser.get(URL)
+    time.sleep(8)
+    dumpAndExit()
+
 try:
     browser = webdriver.Chrome(options=options)
     browser.get(URL)
