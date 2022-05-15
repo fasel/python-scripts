@@ -94,7 +94,7 @@ def getRandInt(min,max):
 
 def setClipboard(text):
     try:
-        p = Popen(['xsel','-pi'], stdin=PIPE)
+        p = Popen(['xsel','-bi'], stdin=PIPE)
         p.communicate(input=text.encode('utf-8'))
     except Exception as err:
         logging.error('Setting the clipboard failed. Msg: ' + str(err))
@@ -417,7 +417,7 @@ try:
         if checkIfLoggedIn():
             printProgress(".")
             if checkForStudy():  # waits ~60 seconds
-                printProgress("!")
+                printProgress("!\n")
                 reservePlace()  # waits ~5-15 seconds
                 # problem: study might be full. button remains there.
                 # solution: refresh, just in case
@@ -439,11 +439,10 @@ try:
                 # prolific autoupdate tends to get stuck
                 # directly loading study page instead of just doing refresh
                 # because we might be stuck in a full or time outed study
-                print('Refreshing Page.')
                 logging.warning('Refreshing Page.')
                 browser.get(URL + 'studies')
         else:
-            printProgress("w")
+            printProgress("w\n")
             doLogin()
             error_check += 1
         # sleep to prevent hammering
