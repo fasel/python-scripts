@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 
 from subprocess import Popen, PIPE
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import webbrowser
 import subprocess
@@ -33,10 +33,12 @@ PROLIFIC_ID = config['prolific']['id']
 USER_DATA_PATH = config['local']['user_data_path']
 CUSTOMBROWSER = config.get('local', 'custombrowser', fallback=None)  # None: fallback to default browser
 
-# globals
+# initializations
 dump_only = False
 debug_logging = False
 show_progress = False
+notification_last = datetime(1970, 1, 1)
+notification_delta = timedelta(hours=1)
 
 # set up browser
 options = webdriver.ChromeOptions() 
@@ -100,7 +102,11 @@ def setClipboard(text):
         logging.error('Setting the clipboard failed. Msg: ' + str(err))
 
 
-def notifyUser(topic, text):
+def notifyUser(topic, text, respect_interval=False):
+    now = datetime.now()
+    if respect_interval and notification_last + notification_delta > now:
+        logging.warning("Notification not sent: Wait timer is still running.")
+        return
     try:
         # -t 10000 | timeout in ms (10000=10s)
         # -h string:desktop-entry:org.kde.dolphin | hint with icon (this makes it show up in the notification history)
@@ -254,7 +260,7 @@ def checkIfAboutYouPresent():
 
         logging.debug('Page element found. About you question waiting to be answered!')
 
-        notifyUser("About You card present!", "Switch to a browser and answer it!")
+        notifyUser("About You card present!", "Switch to a browser and answer it!", respect_interval=True)
 
         return True
     except Exception as err:
