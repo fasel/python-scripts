@@ -165,19 +165,22 @@ def doLogin():
         elemPass.send_keys(PASS)
         elemButton.click()
 
-        try:
-            # accept cookie
-            elemCookie =  WebDriverWait(browser, 10).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "cm-btn-success"))
-            )
-            elemCookie.click()
-        except Exception as err:
-            logging.warning('Cookie message not present.')
-            logging.debug('Cookie message err: ' + str(err))
     except Exception as err:
         logging.error('Exception: ' + str(err))
         browser.quit()
         exit("Error: Login elements not found. Exiting.") 
+
+
+def acceptCookie():
+    try:
+        logging.debug('Checking for cookie message.')
+        elemCookie = WebDriverWait(browser, 4).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "cm-btn-success"))
+        )
+        elemCookie.click()
+        logging.debug('Cookie accepted.')
+    except Exception as err:
+        logging.debug('Cookie message not present. err: ' + str(err))
 
 
 def checkForStudy():
@@ -420,6 +423,9 @@ try:
         printProgress("\r")
         printProgress(f'_{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}_: ')
         printProgress(f"e({error_check})")
+
+        acceptCookie()
+
         if checkIfLoggedIn():
             printProgress(".")
             if checkForStudy():  # waits ~60 seconds
