@@ -370,7 +370,7 @@ def reservePlace():
                 elem_card_1 = WebDriverWait(browser, 5).until(
                     EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'place')]"))
                 )
-                elem_card_2 = elem_card_1.find_element_by_xpath("..")
+                elem_card_2 = elem_card_1.find_element(by=By.XPATH, value="..")
                 elem_card_2.click()
 
             except Exception as err:
