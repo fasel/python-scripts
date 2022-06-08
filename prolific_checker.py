@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import webbrowser
 import subprocess
 import fileinput
+import traceback
 import logging
 import random
 import time
@@ -31,6 +32,7 @@ USER = config['prolific']['user']
 PASS = config['prolific']['pass']
 PROLIFIC_ID = config['prolific']['id']
 USER_DATA_PATH = config['local']['user_data_path']
+CHROME_DRIVER_LOCAL_PATH = config['local']['chrome_driver_local_path']
 CUSTOMBROWSER = config.get('local', 'custombrowser', fallback=None)  # None: fallback to default browser
 
 # initializations
@@ -99,10 +101,40 @@ def setClipboard(text):
         p = Popen(['xsel','-bi'], stdin=PIPE)
         p.communicate(input=text.encode('utf-8'))
     except Exception as err:
-        logging.error('Setting the clipboard failed. Msg: ' + str(err))
+        logging.error('Setting the clipboard failed.')
+        logging.error(traceback.format_exc())
+
+
+def getBrowser(options):
+    try:
+        logging.debug("Initializing Browser")
+        browser = webdriver.Chrome(options=options)
+        return browser
+    # catche version mismatch
+    except Exception as err:
+        logging.error('ERROR-INFO: %s: %s', type(err), err)
+        logging.warning("Could not create browser session. Trying to update.")
+        try:
+            updateBrowser()
+            browser = webdriver.Chrome(options=options)
+            return browser
+        except Exception as err:
+            logging.error('Browser update failed.')
+            logging.error('ERROR-INFO: %s: %s', type(err), err)
+
+
+def updateBrowser():
+    logging.warning("Updating Browser")
+    chrome_driver_version = subprocess.run(["curl", "-s", "https://chromedriver.storage.googleapis.com/LATEST_RELEASE"], capture_output=True, text=True)
+    chrome_driver_version = chrome_driver_version.stdout.strip()
+    logging.debug("Found Chromedriver Version " + chrome_driver_version)
+    subprocess.run(["wget", "-qP", "/tmp/", "https://chromedriver.storage.googleapis.com/" + chrome_driver_version + "/chromedriver_linux64.zip"])
+    subprocess.run(["unzip", "-o", "/tmp/chromedriver_linux64.zip", "-d", CHROME_DRIVER_LOCAL_PATH])
+    logging.warning("Done Updating Browser")
 
 
 def notifyUser(topic, text, respect_interval=False):
+    global notification_last
     now = datetime.now()
     if respect_interval and notification_last + notification_delta > now:
         logging.warning("Notification not sent: Wait timer is still running.")
@@ -111,8 +143,10 @@ def notifyUser(topic, text, respect_interval=False):
         # -t 10000 | timeout in ms (10000=10s)
         # -h string:desktop-entry:org.kde.dolphin | hint with icon (this makes it show up in the notification history)
         subprocess.call(["notify-send", "-t", "10000", "-h", "string:desktop-entry:org.kde.dolphin", "Prolific Checker: " + topic, text])    
+        notification_last = datetime.now()
     except Exception as err:
-        logging.error('Notification send failed. Msg: ' + str(err))
+        logging.error('Notification send failed.')
+        logging.error(traceback.format_exc())
 
 
 def prolificConvenience():
@@ -120,7 +154,8 @@ def prolificConvenience():
     try:
         webbrowser.get(CUSTOMBROWSER).open_new_tab(URL + 'studies')
     except Exception as err:
-        logging.error('Opening the browser failed. Msg: ' + str(err))
+        logging.error('Opening the browser failed.')
+        logging.error(traceback.format_exc())
 
     logging.debug("convenience: copying id to clipboard")
     setClipboard(PROLIFIC_ID)
@@ -166,9 +201,10 @@ def doLogin():
         elemButton.click()
 
     except Exception as err:
-        logging.error('Exception: ' + str(err))
-        browser.quit()
-        exit("Error: Login elements not found. Exiting.") 
+        logging.error("Error: Login elements not found. Exiting.")
+        logging.error('Exception:')
+        logging.error(traceback.format_exc())
+        dumpAndExit()
 
 
 def acceptCookie():
@@ -180,7 +216,8 @@ def acceptCookie():
         elemCookie.click()
         logging.debug('Cookie accepted.')
     except Exception as err:
-        logging.debug('Cookie message not present. err: ' + str(err))
+        logging.debug('Cookie message not present.')
+        logging.debug(traceback.format_exc())
 
 
 def checkForStudy():
@@ -202,7 +239,8 @@ def checkForStudy():
         return True
     except Exception as err:
         logging.disable(logging.NOTSET)
-        logging.debug('Element not found (timeout): ' + str(err))
+        logging.debug('Element not found (timeout):')
+        logging.debug(traceback.format_exc())
         return False
 
 
@@ -218,7 +256,8 @@ def checkIfStuck():
 
         return False
     except Exception as err:
-        logging.debug('Page element not found. Refresh needed! Infotext: ' + str(err))
+        logging.debug('Page element not found. Refresh needed!')
+        logging.debug(traceback.format_exc())
         return True
 
 
@@ -246,7 +285,8 @@ def checkIfStudyPresent():
 
         return True
     except Exception as err:
-        logging.debug('Page element not found. No study present. Infotext: ' + str(err))
+        logging.debug('Page element not found. No study present.')
+        logging.debug(traceback.format_exc())
         return False
 
 
@@ -267,7 +307,8 @@ def checkIfAboutYouPresent():
 
         return True
     except Exception as err:
-        logging.debug('Page element not found. No study present. Infotext: ' + str(err))
+        logging.debug('Page element not found. No about you present.')
+        logging.debug(traceback.format_exc())
         return False
 
 
@@ -285,7 +326,8 @@ def screenIsLocked():
             logging.error(f'Error: Screensaver check returned {cmdout.stdout.strip()}. Expected was either true or false. Assuming screen is locked.')
             return True
     except Exception as err:
-        logging.error('Something went wrong while checking for screen lock. Quitting. Msg: ' + str(err))
+        logging.error('Something went wrong while checking for screen lock. Quitting.')
+        logging.error(traceback.format_exc())
         browser.quit()
         sys.exit(1)
 
@@ -304,7 +346,8 @@ def dumpAndExit():
         browser.quit()
         sys.exit(1)
     except Exception as err:
-        logging.error('Something went wrong: ' + str(err))
+        logging.error('Something went wrong:')
+        logging.error(traceback.format_exc())
         browser.quit()
         sys.exit(1)
         
@@ -353,7 +396,8 @@ def reservePlace():
         elem_card_0.click()
 
     except Exception as err:
-        logging.debug('Place reservation: Card 0 not found or not clickable. Msg: ' + str(err))
+        logging.debug('Place reservation: Card 0 not found or not clickable.')
+        logging.debug(traceback.format_exc())
 
         # find and click first card by span element
         try:
@@ -365,7 +409,8 @@ def reservePlace():
             elem_card_1.click()
 
         except Exception as err:
-            logging.debug('Place reservation: Card 1 not found or not clickable. Msg: ' + str(err))
+            logging.debug('Place reservation: Card 1 not found or not clickable.')
+            logging.debug(traceback.format_exc())
 
             # if first click fails, click card's parent (optional)
             logging.debug("Trying card's parent.")
@@ -377,7 +422,8 @@ def reservePlace():
                 elem_card_2.click()
 
             except Exception as err:
-                logging.debug("Place reservation: Card's parent not found or not clickable. Msg: " + str(err))
+                logging.debug("Place reservation: Card's parent not found or not clickable.")
+                logging.debug(traceback.format_exc())
 
     # find and click reserve place button #1
     try:
@@ -388,7 +434,8 @@ def reservePlace():
         browser.execute_script("arguments[0].scrollIntoView();", elem_reserve_button);
         elem_reserve_button.click()
     except Exception as err: 
-        logging.debug('Place reservation: Button 1 not found. Msg: ' + str(err))
+        logging.debug('Place reservation: Button 1 not found.')
+        logging.debug(traceback.format_exc())
         logging.debug('trying button 2')
 
         # find and click reserve place button #2
@@ -399,7 +446,8 @@ def reservePlace():
             elem_reserve_button2.click()
 
         except Exception as err: 
-            logging.debug('Place reservation: Button 2 not found. Msg: ' + str(err))
+            logging.debug('Place reservation: Button 2 not found.')
+            logging.debug(traceback.format_exc())
             logging.debug('giving up.')
             dumpAndExit()
     print("Place reserved. Start the study!")
@@ -410,13 +458,13 @@ def reservePlace():
 # MAIN
 if dump_only:
     print("Dumping...")
-    browser = webdriver.Chrome(options=options)
+    browser = getBrowser(options)
     browser.get(URL)
     time.sleep(8)
     dumpAndExit()
 
 try:
-    browser = webdriver.Chrome(options=options)
+    browser = getBrowser(options)
     browser.get(URL)
     error_check = 0
     while error_check <= 3:
@@ -466,7 +514,7 @@ try:
     browser.quit()
     exit(1)
 except KeyboardInterrupt as err:
-    logging.error('Keyboard interrupted. (' + str(err) + '). Exiting.')
+    logging.error('Keyboard interrupted. Exiting.')
     browser.quit()
     sys.exit(1)
 
