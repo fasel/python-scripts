@@ -4,6 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.support import expected_conditions as EC
 
 from argparse import ArgumentParser
@@ -201,10 +202,9 @@ def doLogin():
         elemButton.click()
 
     except Exception as err:
-        logging.error("Error: Login elements not found. Exiting.")
+        logging.error("Error: Login elements not found. Retrying.")
         logging.error('Exception:')
         logging.error(traceback.format_exc())
-        dumpAndExit()
 
 
 def acceptCookie():
@@ -303,7 +303,7 @@ def checkIfAboutYouPresent():
 
         logging.debug('Page element found. About you question waiting to be answered!')
 
-        notifyUser("About You card present!", "Switch to a browser and answer it!", respect_interval=True)
+        notifyUser("ABOUT YOU card present!", "ABOUT YOU - Switch to a browser and answer ABOUT YOU!", respect_interval=True)
 
         return True
     except Exception as err:
@@ -464,13 +464,22 @@ if dump_only:
     dumpAndExit()
 
 try:
-    browser = getBrowser(options)
-    browser.get(URL)
     error_check = 0
     while error_check <= 3:
         printProgress("\r")
         printProgress(f'_{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}_: ')
         printProgress(f"e({error_check})")
+        try:
+            browser = getBrowser(options)
+            browser.get(URL)
+        except WebDriverException as err:
+            error_check += 1
+            logging.error('Webdriver error. Network down? Msg:')
+            logging.error(traceback.format_exc())
+            sleep_time = 1 * MINUTE
+            logging.error(f'sleeping({sleep_time})...')
+            time.sleep(sleep_time)
+            continue
 
         acceptCookie()
 
@@ -489,7 +498,7 @@ try:
                 # sleeping for a while
                 # you lose the slot after 10 minutes if you dont start the study
                 # but we wait less because it might have been finished in the meantime
-                sleep_time = 5 * MINUTE  
+                sleep_time = 5 * MINUTE
                 logging.debug(f'sleeping({sleep_time})...')
                 time.sleep(sleep_time)
 
@@ -517,5 +526,3 @@ except KeyboardInterrupt as err:
     logging.error('Keyboard interrupted. Exiting.')
     browser.quit()
     sys.exit(1)
-
-
